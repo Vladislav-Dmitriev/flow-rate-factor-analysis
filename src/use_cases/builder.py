@@ -45,6 +45,8 @@ class Builder:
         self.num_segments = input_data["base_prop"]["segment_count"]
         self.calc_type = input_data["base_prop"]["calc_type"]
         self.p_res = input_data["unit"]["layer_prop"]["p_res_init"]
+        self.water_cut = input_data["unit"]["layer_prop"]["water_cut"]
+        self.p_b = input_data["unit"]["layer_prop"]["p_bubble"]
         self.first_time_step = input_data["target"]["time_step"]
         self.cumulative_work_time = input_data["target"]["cumulative_work_time"]
         self.number_of_steps = input_data["target"]["number_of_steps"]
@@ -362,17 +364,16 @@ class Builder:
 
         return pd
 
-    def calc_flow_rate(self, S, q_d, p_d, p_bhp, is_lift=False):
+    def calc_flow_rate(self, S, q_d, p_d, delta_p, is_lift=False):
         """
         Рассчитывает дебит жидкости для заданного забойного давления
         :param S: переменные пространства Лапласа
         :param q_d: вектор безразмерного дебита
         :param p_d: вектор безразмерного давления
-        :param p_bhp: целевое забойное давление
+        :param delta_p: депрессия с учетом газовой фазы и обводненности продукции
         :param is_lift: учитывать лифт или нет
         :return: дебит жидкости
         """
-        delta_p = self.p_res - p_bhp
         res_mult = (
                 self.layer.k
                 * self.layer.h
@@ -391,46 +392,43 @@ class Builder:
                 flow_rate.append(flow_rate_t)
         return flow_rate
 
-    '''Функция для расчета депрессии с учетом обводненности и давления насыщения
-    def calc_delta_p(self, Pwf, f_w, Pb):
+    '''Функция для расчета депрессии с учетом обводненности и давления насыщения'''
+    def calc_delta_p(self, Pwf):
         """
         Рассчитывает депрессию с учетом газовой фазы и обводненности продукции (метод Вогеля с учетом обводненности).
-
-        :param Pb: Давление насыщения (бар)
         :param Pwf: Забойное давление (бар)
-        :param f_w: Обводненность продукции (в процентах, 0-100)
         :return: Депрессия (бар)
         """
         # Корректировка давления насыщения для пластов ниже давления насыщения
-        if Pb > self.p_res:
-            Pb = self.p_res
+        if self.p_b > self.p_res:
+            self.p_b = self.p_res
 
         # Если продукция полностью водяная
-        if f_w == 100:
+        if self.water_cut == 100:
             return self.p_res - Pwf
 
         # Инициализация переменных
-        Pwf_G = (4 / 9) * (f_w / 100) * Pb  # Давление для нефти с водой и газом
+        Pwf_G = (4 / 9) * (self.water_cut / 100) * self.p_b  # Давление для нефти с водой и газом
 
-        if Pwf >= Pb:
+        if Pwf >= self.p_b:
             # Нефть или нефть + вода (нет газа)
             return self.p_res - Pwf
 
         elif Pwf < Pwf_G:
             # Нефть + вода + газ
-            tgb_r = (81 - 80 * (0.999 * Pb - 0.0018 * (self.p_res - Pb)) / Pb) ** 0.5
+            tgb_r = (81 - 80 * (0.999 * self.p_b - 0.0018 * (self.p_res - self.p_b)) / self.p_b) ** 0.5
             tgb = (
-                    f_w / 100 +
-                    (0.125 * (1 - f_w / 100) * Pb * (-1 + tgb_r)) / (0.001 * (self.p_res - (4 / 9) * Pb))
+                    self.water_cut / 100 +
+                    (0.125 * (1 - self.water_cut / 100) * self.p_b * (-1 + tgb_r)) / (0.001 * (self.p_res - (4 / 9) * self.p_b))
             )
-            return (Pwf_G + (self.p_res - (4 / 9) * Pb) * tgb - Pwf) / tgb
+            return (Pwf_G + (self.p_res - (4 / 9) * self.p_b) * tgb - Pwf) / tgb
 
         else:
             # Смешанная продукция (нефть + газ или нефть + вода + газ)
-            a = (Pwf + 0.125 * (1 - f_w / 100) * Pb - (f_w / 100) * self.p_res) / (0.125 * (1 - f_w / 100) * Pb)
-            B = (f_w / 100) / (0.125 * (1 - f_w / 100) * Pb)
-            c = 2 * a * B + 144 / Pb
-            d = a ** 2 - 144 * (self.p_res - Pb) / Pb - 81
+            a = (Pwf + 0.125 * (1 - self.water_cut / 100) * self.p_b - (self.water_cut / 100) * self.p_res) / (0.125 * (1 - self.water_cut / 100) * self.p_b)
+            B = (self.water_cut / 100) / (0.125 * (1 - self.water_cut / 100) * self.p_b)
+            c = 2 * a * B + 144 / self.p_b
+            d = a ** 2 - 144 * (self.p_res - self.p_b) / self.p_b - 81
 
             if B == 0:
                 # Нефть + газ (по Вогелю)
@@ -438,7 +436,6 @@ class Builder:
             else:
                 # Нефть + вода + газ
                 return (-c + (c ** 2 - 4 * (B ** 2) * d) ** 0.5) / (2 * (B ** 2))
-    '''
 
     def calc_q_storage(self, S, q_d, p_d, ql):
         """

@@ -38,6 +38,8 @@ input_data = {
         },
         "layer_prop": {
             "permeability": 10,
+            "water_cut": 10,
+            "p_bubble": 100,
             "kv_kh_ratio": 0.1,
             "compressibility": 0.00012,
             "porosity": 0.2,

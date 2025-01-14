@@ -50,6 +50,8 @@ class LayerProperty(BaseModel):
     Параметры пласта
     """
     permeability: float = Field(None, title='Проницаемость пласта, мД', gt=0)
+    water_cut: float = Field(None, title='Обводненность, %', ge=0, le=100)
+    p_b: float = Field(None, title='Давление насыщения', gt=0, alias='p_bubble')
     kv_kh_ratio: float = Field(None, title='Отношение вертикальной к горизонтальной проницаемости', ge=0, le=1)
     compressibility: float = Field(None, title='Общая сжимаемость', gt=0)
     porosity: float = Field(None, title='Пористость', ge=0, le=1)
