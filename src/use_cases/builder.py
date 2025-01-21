@@ -47,9 +47,7 @@ class Builder:
         self.p_res = input_data["unit"]["layer_prop"]["p_res_init"]
         self.water_cut = input_data["unit"]["layer_prop"]["water_cut"]
         self.p_b = input_data["unit"]["layer_prop"]["p_bubble"]
-        self.first_time_step = input_data["target"]["time_step"]
-        self.cumulative_work_time = input_data["target"]["cumulative_work_time"]
-        self.number_of_steps = input_data["target"]["number_of_steps"]
+        self.t = input_data["target"]["cumulative_time"]
         self.grp_flag = input_data["unit"]["layer_prop"]["grp_flag"]
         self.mgrp_flag = input_data["unit"]["layer_prop"]["mgrp_flag"]
         rel_M = input_data["unit"]["layer_prop"]["kmu_in_out_ratio"]
@@ -133,20 +131,6 @@ class Builder:
             raise ValueError("Скважина не помещается в прямоугольную область дренирования. Введите другие "
                              "значения длины и ширины прямоугольника.")
 
-    def calc_t(self):
-        """
-        Рассчитывает накопленное время работы
-        :return: накопленное время работы
-        """
-        time_step_multiplier = exp(
-            1 / (self.number_of_steps - 1) * log(self.cumulative_work_time / self.first_time_step)
-        )
-        t = np.zeros(self.number_of_steps)
-        t[0] = self.first_time_step
-        t[1:] = time_step_multiplier
-        t = np.multiply.accumulate(t)
-        return t
-
     def calc_multT(self):
         """
         Рассчитывает multT
@@ -226,18 +210,16 @@ class Builder:
             p_wf.append(p_wf_t)
         return p_wf, delta_p
 
-    def calc_S(self, t):
+    def calc_S(self):
         """
         Рассчитывает переменные пространства Лапласа
-        :param t: накопленное время работы
         :return: переменные пространства Лапласа
         """
         DlogTW = log(2)
-        td = t / self.multT
-        S = np.zeros((self.number_of_steps, self.number_of_lapl_coeff + 1))
-        for i in range(self.number_of_steps):
-            for j in range(1, self.number_of_lapl_coeff + 1):
-                S[(i, j)] = j * DlogTW / td[i]
+        td = self.t / self.multT
+        S = np.zeros(self.number_of_lapl_coeff + 1)
+        for j in range(1, self.number_of_lapl_coeff + 1):
+            S[j] = j * DlogTW / td
         return S
 
     def calc_double_porosity(self, S):
@@ -274,93 +256,92 @@ class Builder:
         :param S: переменные пространства Лапласа
         :return: вектор безразмерного давления
         """
-        pd = np.zeros((self.number_of_steps, self.number_of_lapl_coeff + 1))
-        for i in range(self.number_of_steps):
-            for j in range(1, self.number_of_lapl_coeff + 1):
-                if self.wellbore.wellbore_type == 'vertical':
-                    if self.grp_flag:
-                        pd[(i, j)] = self.frac.calc_frac(self.calc_type, S[i, j], self.layer.xd, self.layer.yd,
-                                                         self.layer.xwd, self.layer.ywd, self.layer.xed, self.layer.yed,
-                                                         self.layer.xbound, self.layer.ybound,
-                                                         self.layer.reservoir_model,
-                                                         self.layer.zd, self.layer.zwd, self.layer.zed, self.layer.hwd,
-                                                         self.layer.zbound_up, self.layer.zbound_down,
-                                                         self.num_segments, self.multT, self.layer.k, self.layer.hw_f,
-                                                         self.unit_length)
-                    elif self.layer.hw_f != 1 or (
-                            self.layer.hw_f == 1 and (self.layer.zbound_up == "c" or self.layer.zbound_down == "c")):
-                        pd[(i, j)] = self.vert_pp_calculator.partial_penetration_vert_rect_lapl(S[(i, j)],
-                                                                                                self.layer.xd,
-                                                                                                self.layer.yd,
-                                                                                                self.layer.zd,
-                                                                                                self.layer.xwd,
-                                                                                                self.layer.ywd,
-                                                                                                self.layer.zwd,
-                                                                                                self.layer.xed,
-                                                                                                self.layer.yed,
-                                                                                                self.layer.zed,
-                                                                                                self.layer.hwd,
-                                                                                                self.layer.xbound,
-                                                                                                self.layer.ybound,
-                                                                                                self.layer.zbound_up,
-                                                                                                self.layer.zbound_down,
-                                                                                                self.layer.rwd,
-                                                                                                self.calc_type)
-                    else:
-                        pd[(i, j)] = self.laplace_calculator.calc_pd(
-                            S[(i, j)],
-                            self.layer.xd,
-                            self.layer.yd,
-                            self.layer.xwd,
-                            self.layer.ywd,
-                            self.layer.xed,
-                            self.layer.yed,
-                            self.layer.xbound,
-                            self.layer.ybound,
-                            self.layer.skin,
-                        )
-                elif self.wellbore.wellbore_type == 'horizontal':
-                    if self.mgrp_flag:
-                        xw, yw, xe, ye, xbound, ybound = self.multifrac_calculator.calc_multifrac_geometry(
-                            self.layer.xe, self.layer.ye, self.layer.wf, self.layer.lf, self.wellbore.l_hor,
-                            self.layer.xbound, self.layer.ybound)
-                        xwd, ywd, zwd, xed, yed, zed, rwd = self.layer.calc_dimensionless_geometry(xw, yw,
-                                                                                                   self.layer.zw, xe,
-                                                                                                   ye, self.layer.ze,
-                                                                                                   self.wellbore.rw,
-                                                                                                   self.layer.s_kv_kh,
-                                                                                                   self.unit_length)
-                        pd[(i, j)] = self.multifrac_calculator.calc_multifrac(self.layer.reservoir_model, S[i, j],
-                                                                              xwd, ywd,
-                                                                              xed, yed,
-                                                                              self.num_segments,
-                                                                              xbound, ybound,
-                                                                              self.calc_type, self.unit_length)
-                    else:
-                        pd[(i, j)] = self.laplace_calculator.horizontal_rect_lapl(
-                            S[i, j], self.layer.rwd, self.layer.zed,
-                            self.layer.yd, self.layer.ywd,
-                            self.layer.zd, self.layer.zwd,
-                            self.layer.xwd, self.layer.xd,
-                            self.layer.xed, self.layer.yed,
-                            self.layer.xbound, self.layer.ybound,
-                            self.layer.zbound_up,
-                            self.layer.zbound_down,
-                            self.wellbore.fcd, self.layer.skin,
-                            self.wellbore.perf, self.wellbore.n_perf,
-                            self.num_segments, self.calc_type, j
-                        )
-                elif self.wellbore.wellbore_type == "multilateral":
-                    pd[(i, j)] = self.multilateral_calculator.multilateral_rect_lapl(S[i, j], self.layer.xwd,
-                                                                                     self.layer.ywd, self.layer.zwd,
-                                                                                     self.layer.xed, self.layer.yed,
-                                                                                     self.layer.zed, self.layer.rwd,
-                                                                                     self.layer.xbound,
-                                                                                     self.layer.ybound,
-                                                                                     self.layer.zbound_up,
-                                                                                     self.layer.zbound_down,
-                                                                                     self.calc_type, self.num_segments,
-                                                                                     self.unit_length)
+        pd = np.zeros(self.number_of_lapl_coeff + 1)
+        for j in range(1, self.number_of_lapl_coeff + 1):
+            if self.wellbore.wellbore_type == 'vertical':  # если скважина вертикальная
+                if self.grp_flag:  # если есть ГРП
+                    pd[j] = self.frac.calc_frac(self.calc_type, S[j], self.layer.xd, self.layer.yd,
+                                                     self.layer.xwd, self.layer.ywd, self.layer.xed, self.layer.yed,
+                                                     self.layer.xbound, self.layer.ybound,
+                                                     self.layer.reservoir_model,
+                                                     self.layer.zd, self.layer.zwd, self.layer.zed, self.layer.hwd,
+                                                     self.layer.zbound_up, self.layer.zbound_down,
+                                                     self.num_segments, self.multT, self.layer.k, self.layer.hw_f,
+                                                     self.unit_length)
+                elif self.layer.hw_f != 1 or (
+                        self.layer.hw_f == 1 and (self.layer.zbound_up == "c" or self.layer.zbound_down == "c")):
+                    #  если неполное вскрытие пласта или полное вскрытие, но замкнутые границы
+                    pd[j] = self.vert_pp_calculator.partial_penetration_vert_rect_lapl(S[j], self.layer.xd,
+                                                                                       self.layer.yd,
+                                                                                       self.layer.zd,
+                                                                                       self.layer.xwd,
+                                                                                       self.layer.ywd,
+                                                                                       self.layer.zwd,
+                                                                                       self.layer.xed,
+                                                                                       self.layer.yed,
+                                                                                       self.layer.zed,
+                                                                                       self.layer.hwd,
+                                                                                       self.layer.xbound,
+                                                                                       self.layer.ybound,
+                                                                                       self.layer.zbound_up,
+                                                                                       self.layer.zbound_down,
+                                                                                       self.layer.rwd,
+                                                                                       self.calc_type)
+                else:  # в остальных случаях
+                    pd[j] = self.laplace_calculator.calc_pd(
+                        S[j],
+                        self.layer.xd,
+                        self.layer.yd,
+                        self.layer.xwd,
+                        self.layer.ywd,
+                        self.layer.xed,
+                        self.layer.yed,
+                        self.layer.xbound,
+                        self.layer.ybound,
+                        self.layer.skin,
+                    )
+            elif self.wellbore.wellbore_type == 'horizontal':  # если скважина горизонтальная
+                if self.mgrp_flag:  # если есть МГРП
+                    xw, yw, xe, ye, xbound, ybound = self.multifrac_calculator.calc_multifrac_geometry(
+                        self.layer.xe, self.layer.ye, self.layer.wf, self.layer.lf, self.wellbore.l_hor,
+                        self.layer.xbound, self.layer.ybound)
+                    xwd, ywd, zwd, xed, yed, zed, rwd = self.layer.calc_dimensionless_geometry(xw, yw,
+                                                                                               self.layer.zw, xe,
+                                                                                               ye, self.layer.ze,
+                                                                                               self.wellbore.rw,
+                                                                                               self.layer.s_kv_kh,
+                                                                                               self.unit_length)
+                    pd[j] = self.multifrac_calculator.calc_multifrac(self.layer.reservoir_model, S[j],
+                                                                          xwd, ywd,
+                                                                          xed, yed,
+                                                                          self.num_segments,
+                                                                          xbound, ybound,
+                                                                          self.calc_type, self.unit_length)
+                else:  # горизонатльная скважина без ГРП
+                    pd[j] = self.laplace_calculator.horizontal_rect_lapl(
+                        S[j], self.layer.rwd, self.layer.zed,
+                        self.layer.yd, self.layer.ywd,
+                        self.layer.zd, self.layer.zwd,
+                        self.layer.xwd, self.layer.xd,
+                        self.layer.xed, self.layer.yed,
+                        self.layer.xbound, self.layer.ybound,
+                        self.layer.zbound_up,
+                        self.layer.zbound_down,
+                        self.wellbore.fcd, self.layer.skin,
+                        self.wellbore.perf, self.wellbore.n_perf,
+                        self.num_segments, self.calc_type, j
+                    )
+            elif self.wellbore.wellbore_type == "multilateral":  # если скважина многозабойная
+                pd[j] = self.multilateral_calculator.multilateral_rect_lapl(S[j], self.layer.xwd,
+                                                                                 self.layer.ywd, self.layer.zwd,
+                                                                                 self.layer.xed, self.layer.yed,
+                                                                                 self.layer.zed, self.layer.rwd,
+                                                                                 self.layer.xbound,
+                                                                                 self.layer.ybound,
+                                                                                 self.layer.zbound_up,
+                                                                                 self.layer.zbound_down,
+                                                                                 self.calc_type, self.num_segments,
+                                                                                 self.unit_length)
 
         return pd
 
@@ -380,16 +361,14 @@ class Builder:
                 * delta_p
                 / (18.42 * self.wellbore.bl * self.wellbore.mu)
         )
-        flow_rate = []
+        flow_rate = None
         if not is_lift:
-            for i in range(0, self.number_of_steps):
-                SumR = 0
-                for j in range(1, self.number_of_lapl_coeff + 1):
-                    add = (self.v[j] / j) / (p_d[(i, j)] * q_d[(i, j)] * S[(i, j)])
-                    SumR += add
-                flow_rate_t = SumR * res_mult
-                flow_rate_t = float(flow_rate_t)
-                flow_rate.append(flow_rate_t)
+            SumR = 0
+            for j in range(1, self.number_of_lapl_coeff + 1):
+                add = (self.v[j] / j) / (p_d[j] * q_d[j] * S[j])
+                SumR += add
+            flow_rate = SumR * res_mult
+            flow_rate = float(flow_rate)
         return flow_rate
 
     '''Функция для расчета депрессии с учетом обводненности и давления насыщения'''
@@ -518,18 +497,16 @@ class Builder:
                 / (18.42 * self.wellbore.bl * self.wellbore.mu)
         )
         res_mult = multq * self.multT / 24
-        cumulative_prod = []
+        cumulative_prod = None
         if not is_lift:
-            for i in range(0, self.number_of_steps):
-                SumR = 0
-                for j in range(1, self.number_of_lapl_coeff + 1):
-                    add = (self.v[j] / j) / (
-                            p_d[(i, j)] * q_d[(i, j)] * S[(i, j)] ** 2
-                    )
-                    SumR += add
-                flow_rate_t = SumR * res_mult
-                flow_rate_t = float(flow_rate_t)
-                cumulative_prod.append(flow_rate_t)
+            SumR = 0
+            for j in range(1, self.number_of_lapl_coeff + 1):
+                add = (self.v[j] / j) / (
+                        p_d[j] * q_d[j] * S[j] ** 2
+                )
+                SumR += add
+            flow_rate = SumR * res_mult
+            cumulative_prod = float(flow_rate)
         return cumulative_prod
 
     def calc_JD_for_flow_rate(self, p_bhp, q_calc, cumulative_prod):
@@ -540,25 +517,15 @@ class Builder:
         :param cumulative_prod: накопленная добыча жидкости
         :return: JD
         """
-        JD_list = []
-        for i in range(0, self.number_of_steps):
-            Q = q_calc[i]
-            V_pore = self.layer.w * self.layer.l * self.layer.h * self.layer.phi
-            np_reservoir = cumulative_prod[i]
-            if self.layer.xbound == "c" or self.layer.ybound == "c" or self.layer.zbound_up == "c" or self.layer.zbound_down == "c":
-                P_avg = self.p_res
-            else:
-                P_avg = (
-                        self.p_res - np_reservoir * self.wellbore.bl / V_pore / self.layer.ct
-                )
-            Pwf = p_bhp
-            JD = (
-                    18.42
-                    * Q
-                    * self.wellbore.mu
-                    * self.wellbore.bl
-                    / (self.layer.k * self.layer.h * (P_avg - Pwf))
+        Q = q_calc
+        V_pore = self.layer.w * self.layer.l * self.layer.h * self.layer.phi
+        np_reservoir = cumulative_prod
+        if self.layer.xbound == "c" or self.layer.ybound == "c" or self.layer.zbound_up == "c" or self.layer.zbound_down == "c":
+            P_avg = self.p_res
+        else:
+            P_avg = (
+                    self.p_res - np_reservoir * self.wellbore.bl / V_pore / self.layer.ct
             )
-            JD_list.append(JD)
+        Pwf = p_bhp
 
-        return JD_list
+        return 18.42 * Q * self.wellbore.mu * self.wellbore.bl / (self.layer.k * self.layer.h * (P_avg - Pwf))

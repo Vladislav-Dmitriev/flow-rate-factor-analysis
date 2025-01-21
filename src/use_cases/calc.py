@@ -6,34 +6,28 @@ from src.use_cases.builder import Builder
 from logger import logger
 
 
-def send_to_calc_flow_rate(input_data: TaskTarget, fake_t=None) -> dict:
+def send_to_calc_flow_rate(input_data: TaskTarget) -> dict:
     """Отправка параметров для расчета дебита жидкости
 
     :param input_data: Входные данные для расчета параметров
     :type input_data: src.entities.models.TaskTarget
 
-    :param fake_t: Тестовое накопленное время работы
-
     :return: Дебит жидкости (в сутки)
     :rtype: dict
     """
-    res: dict = {"flow_rate_result": None, "t": None, "JD": None}
+    res: dict = {"t": None, "JD": None, "flow_rate_result": None}
     input_data_dict = input_data.model_dump(by_alias=True)
     builder = Builder(**input_data_dict)
     p_bhp = input_data_dict["target"]["target_values"]["p_bhp"]
     try:
-        if fake_t is None:
-            t = builder.calc_t()
-        else:
-            t = np.array(fake_t)
-        S = builder.calc_S(t)
+        S = builder.calc_S()
         q_d = builder.calc_q_d(S)
         S_new = builder.calc_double_porosity(S)
         p_d = builder.calc_p_d(S_new)
         delta_p = builder.calc_delta_p(p_bhp)
         flow_rate = builder.calc_flow_rate(S, q_d, p_d, delta_p)
         res["flow_rate_result"] = flow_rate
-        res["t"] = t.tolist()
+        res["t"] = input_data_dict["target"]["cumulative_time"]
         cumulative_prod = builder.calc_cumulative_prod(S, q_d, p_d, p_bhp)
         JD = builder.calc_JD_for_flow_rate(p_bhp, flow_rate, cumulative_prod)
         res["JD"] = JD
