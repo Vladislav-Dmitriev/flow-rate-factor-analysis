@@ -3,7 +3,6 @@ import traceback
 
 from src.entities.models import TaskTarget
 from src.use_cases.builder import Builder
-from logger import logger
 
 
 def send_to_calc_flow_rate(input_data: TaskTarget) -> dict:
@@ -33,10 +32,8 @@ def send_to_calc_flow_rate(input_data: TaskTarget) -> dict:
         res["JD"] = JD
     except Exception as e:
         msg = f"Error calc_flow_rate route: {e}!"
-        logger.error(msg)
     else:
         msg = "calc_flow_rate was successful!"
-        logger.info(msg)
 
     response = {
         "result": res,
@@ -84,10 +81,8 @@ def send_to_calc_p_bhp(input_data: TaskTarget, fake_t=None) -> dict:
         res["JD"] = JD
     except Exception as e:
         msg = f"Error calc_p_bhp route: {e}!"
-        logger.error(traceback.format_exc(chain=False))
     else:
         msg = "calc_p_bhp was successful!"
-        logger.info(msg)
 
     response = {
         "result": res,

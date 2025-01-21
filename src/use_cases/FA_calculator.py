@@ -2,7 +2,6 @@ import numpy as np
 import pandas as pd
 from src.entities.models import TaskTarget
 from src.use_cases.builder import Builder
-from logger import logger
 
 
 class FactorAnalysis:
@@ -98,10 +97,8 @@ class FactorAnalysis:
             res["flow_rate_result"] = flow_rate
         except Exception as e:
             msg = f"Error calc_flow_rate route: {e}!"
-            logger.error(msg)
         else:
             msg = "calc_flow_rate was successful!"
-            # logger.info(msg)
 
         response = {
             "result": res,
