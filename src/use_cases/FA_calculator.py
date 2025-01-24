@@ -1,3 +1,5 @@
+import copy
+
 import numpy as np
 import pandas as pd
 from src.entities.models import TaskTarget
@@ -51,20 +53,13 @@ class FactorAnalysis:
         self.data_plan = data_plan
         self.data_fact = data_fact
         # Параметры для факторного анализа
-        self.dict_factor_params: dict = {"k": {"delta": self.k_delta, "step": self.k_step},
-                                         "h": {"delta": self.h_delta, "step": self.h_step},
-                                         "Pwf": {"delta": self.Pwf_delta, "step": self.Pwf_step},
-                                         "fw": {"delta": self.fw_delta, "step": self.fw_step},
-                                         "Pr": {"delta": self.Pr_delta, "step": self.Pr_step},
-                                         "ct": {"delta": self.ct_delta, "step": self.ct_step},
-                                         "wf": {"delta": self.wf_delta, "step": self.wf_step},
-                                         "kf": {"delta": self.kf_delta, "step": self.kf_step}
+        self.dict_factor_params: dict = {"k": {"delta": self.k_delta, "step": self.k_step,
+                                               "plan": self.data_plan["unit"]["layer_prop"]["permeability"]},
+                                         "h": {"delta": self.h_delta, "step": self.h_step,
+                                               "plan": self.data_plan["unit"]["h_eff"]}
                                          }
 
     def calc_flow_rate(self, input_data: dict):
-        expected_df = pd.DataFrame({'t': [2400.0], 'JD': [1.029817263], 'flow_rate_result': [41.76220505]})
-        self.data_plan['base_prop']['calc_type'] = 'optimal'
-        self.data_plan['target']['number_of_steps'] = len(expected_df)
         model = TaskTarget(**input_data)
         actual = (
             self.calculation_by_laplace(model)
@@ -112,14 +107,14 @@ class FactorAnalysis:
         Изменение значений подаваемых параметров в словаре
         :param k: проницаемость, мДа
         :param h: эффективная мощность пласта, м
-        :param Pwf:
-        :param fw:
-        :param Pr:
-        :param ct:
-        :param wf:
-        :param kf:
-        :param dict_for_calc:
-        :return:
+        :param Pwf: забойное давление, атм
+        :param fw: обводненность, %
+        :param Pr: пластовое давление, атм
+        :param ct: общая сжимаемость, 1/атм
+        :param wf: ширина трещины ГРП у ствола скважины, мм
+        :param kf: проницаемость трещины ГРП, дарси
+        :param dict_for_calc: словарь с входными данными
+        :return: словарь с измененными значениями заданных параметров
         """
         dict_for_calc["unit"]["layer_prop"]["permeability"] = k
         dict_for_calc["unit"]["h_eff"] = h
@@ -138,52 +133,83 @@ class FactorAnalysis:
         :return: факторы по дебиту жидкости QKliq
         """
         q_delta_by_factor = dict.fromkeys(self.dict_factor_params.keys(), None)
-        # q_delta_by_factor_simpson = dict.fromkeys(self.dict_factor_params.keys(), None)
 
-        for param in self.dict_factor_params.keys():
-            Qk = np.zeros(self.steps)
+        # for param in self.dict_factor_params.keys():
 
-            # Основной расчет Qk
-            for i in range(self.steps):
-                k1 = self.k1 + self.k_delta * i / self.steps
-                k2 = self.k2 + self.k_delta * i / self.steps
-                h1 = self.h1 + self.h_delta * i / self.steps
-                h2 = self.h2 + self.h_delta * i / self.steps
-                Pwf1 = self.P_wf1 + self.Pwf_delta * i / self.steps
-                Pwf2 = self.P_wf2 + self.Pwf_delta * i / self.steps
-                fw1 = self.f_w1 + self.fw_delta * i / self.steps
-                fw2 = self.f_w2 + self.fw_delta * i / self.steps
-                Pr1 = self.Pr1 + self.Pr_delta * i / self.steps
-                Pr2 = self.Pr2 + self.Pr_delta * i / self.steps
-                ct1 = self.ct1 + self.ct_delta * i / self.steps
-                ct2 = self.ct2 + self.ct_delta * i / self.steps
-                wf1 = self.wf1 + self.wf_delta * i / self.steps
-                wf2 = self.wf2 + self.wf_delta * i / self.steps
-                kf1 = self.kf1 + self.kf_delta * i / self.steps
-                kf2 = self.kf2 + self.kf_delta * i / self.steps
+        Qk = np.zeros(self.steps)
 
-                # Рассчитываем дебит для текущего шага
-                Qk[i] = ((self.calc_flow_rate(self.change_values_in_data(k1, h1, Pwf1, fw1, Pr1, ct1, wf1, kf1,
-                                                                                self.data_fact.copy())) * (1 - fw1) -
-                                 self.calc_flow_rate(self.change_values_in_data(k2, h2, Pwf2, fw2, Pr2, ct2, wf2, kf2,
-                                                                                self.data_fact.copy())) * (
-                                             1 - fw2)) / 2 /
-                                self.dict_factor_params[param]["step"])
+        # Основной расчет Qk
+        for i in range(self.steps):
+            # Q1 =
+            k1 = self.k1 + self.k_delta * i / self.steps
+            k2 = self.k2 + self.k_delta * i / self.steps
+            h1 = self.data_plan["unit"]["h_eff"] + self.h_delta * i / self.steps
+            h2 = self.data_plan["unit"]["h_eff"] + self.h_delta * i / self.steps
+            Pwf1 = self.data_plan["target"]["target_values"]["p_bhp"] + self.Pwf_delta * i / self.steps
+            Pwf2 = self.data_plan["target"]["target_values"]["p_bhp"] + self.Pwf_delta * i / self.steps
+            fw1 = self.data_plan["unit"]["layer_prop"]["water_cut"] + self.fw_delta * i / self.steps
+            fw2 = self.data_plan["unit"]["layer_prop"]["water_cut"] + self.fw_delta * i / self.steps
+            Pr1 = self.data_plan["unit"]["layer_prop"]["p_res_init"] + self.Pr_delta * i / self.steps
+            Pr2 = self.data_plan["unit"]["layer_prop"]["p_res_init"] + self.Pr_delta * i / self.steps
+            ct1 = self.data_plan["unit"]["layer_prop"]["compressibility"] + self.ct_delta * i / self.steps
+            ct2 = self.data_plan["unit"]["layer_prop"]["compressibility"] + self.ct_delta * i / self.steps
+            wf1 = self.data_plan["unit"]["layer_prop"]["grp_prop"]["wellbore_wf"] + self.wf_delta * i / self.steps
+            wf2 = self.data_plan["unit"]["layer_prop"]["grp_prop"]["wellbore_wf"] + self.wf_delta * i / self.steps
+            kf1 = self.data_plan["unit"]["layer_prop"]["grp_prop"]["kf"] + self.kf_delta * i / self.steps
+            kf2 = self.data_plan["unit"]["layer_prop"]["grp_prop"]["kf"] + self.kf_delta * i / self.steps
 
-            # Интеграл по Qk
-            delta = 0
-            # delta_simpson = 0
+            # Рассчитываем дебит для текущего шага
+            Qk[i] = ((self.calc_flow_rate(self.change_values_in_data(k1, h1, Pwf1, fw1, Pr1, ct1, wf1, kf1,
+                                                                     copy.deepcopy(self.data_plan))) -
+                      self.calc_flow_rate(self.change_values_in_data(k2, h2, Pwf2, fw2, Pr2, ct2, wf2, kf2,
+                                                                     copy.deepcopy(self.data_plan)))) / 2 /
+                     self.dict_factor_params["k"]["step"])
 
-            for g in range(self.steps - 1):
-                delta += (((Qk[g + 1]) + Qk[g]) / 2) * (
-                            self.dict_factor_params[param]["delta"] / self.steps)
+        # Интеграл по Qk
+        delta = 0
 
-            # if (self.steps - 1) % 2 == 0:
-            #     delta_simpson += Qk_trapez[0] + Qk_trapez[-1]
-            #     delta_simpson += 4 * sum(Qk_trapez[i] for i in range(1, self.steps, 2))
-            #     delta_simpson += 2 * sum(Qk_trapez[j] for j in range(2, self.steps, 2))
-            #     delta_simpson *= self.dict_factor_params[param]["delta"] / 3 / self.steps
+        for g in range(self.steps - 1):
+            delta += (((Qk[g + 1]) + Qk[g]) / 2) * (
+                    self.dict_factor_params["k"]["delta"] / self.steps)
 
-            q_delta_by_factor[param] = delta
+        q_delta_by_factor["k"] = delta
+
+        # for param in self.dict_factor_params.keys():
+        Qk = np.zeros(self.steps)
+
+        # Основной расчет Qk
+        for i in range(self.steps):
+            k1 = self.data_plan["unit"]["layer_prop"]["permeability"] + self.k_delta * i / self.steps
+            k2 = self.data_plan["unit"]["layer_prop"]["permeability"] + self.k_delta * i / self.steps
+            h1 = self.h1 + self.h_delta * i / self.steps
+            h2 = self.h2 + self.h_delta * i / self.steps
+            Pwf1 = self.data_plan["target"]["target_values"]["p_bhp"] + self.Pwf_delta * i / self.steps
+            Pwf2 = self.data_plan["target"]["target_values"]["p_bhp"] + self.Pwf_delta * i / self.steps
+            fw1 = self.data_plan["unit"]["layer_prop"]["water_cut"] + self.fw_delta * i / self.steps
+            fw2 = self.data_plan["unit"]["layer_prop"]["water_cut"] + self.fw_delta * i / self.steps
+            Pr1 = self.data_plan["unit"]["layer_prop"]["p_res_init"] + self.Pr_delta * i / self.steps
+            Pr2 = self.data_plan["unit"]["layer_prop"]["p_res_init"] + self.Pr_delta * i / self.steps
+            ct1 = self.data_plan["unit"]["layer_prop"]["compressibility"] + self.ct_delta * i / self.steps
+            ct2 = self.data_plan["unit"]["layer_prop"]["compressibility"] + self.ct_delta * i / self.steps
+            wf1 = self.data_plan["unit"]["layer_prop"]["grp_prop"]["wellbore_wf"] + self.wf_delta * i / self.steps
+            wf2 = self.data_plan["unit"]["layer_prop"]["grp_prop"]["wellbore_wf"] + self.wf_delta * i / self.steps
+            kf1 = self.data_plan["unit"]["layer_prop"]["grp_prop"]["kf"] + self.kf_delta * i / self.steps
+            kf2 = self.data_plan["unit"]["layer_prop"]["grp_prop"]["kf"] + self.kf_delta * i / self.steps
+
+            # Рассчитываем дебит для текущего шага
+            Qk[i] = ((self.calc_flow_rate(self.change_values_in_data(k1, h1, Pwf1, fw1, Pr1, ct1, wf1, kf1,
+                                                                     copy.deepcopy(self.data_fact))) -
+                      self.calc_flow_rate(self.change_values_in_data(k2, h2, Pwf2, fw2, Pr2, ct2, wf2, kf2,
+                                                                     copy.deepcopy(self.data_fact)))) / 2 /
+                     self.dict_factor_params["h"]["step"])
+
+        # Интеграл по Qk
+        delta = 0
+
+        for g in range(self.steps - 1):
+            delta += (((Qk[g + 1]) + Qk[g]) / 2) * (
+                    self.dict_factor_params["h"]["delta"] / self.steps)
+
+        q_delta_by_factor["h"] = delta
 
         return q_delta_by_factor
