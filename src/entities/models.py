@@ -18,7 +18,7 @@ class Grp_Prop(BaseModel):
     """
     Параметры ГРП
     """
-    hf: float = Field(None, title='Полудлина трещины, м', ge=0)
+    xf: float = Field(None, title='Полудлина трещины, м', ge=0)
     kf: float = Field(None, title='Проницаемость трещины, дарси', ge=0)
     wellbore_wf: float = Field(None, title='Ширина трещины у ствола скважины, мм', ge=0)
     res_wf: float = Field(None, title='Ширина трещины на конце, мм', ge=0)
@@ -56,8 +56,8 @@ class LayerProperty(BaseModel):
     compressibility: float = Field(None, title='Общая сжимаемость', gt=0)
     porosity: float = Field(None, title='Пористость', ge=0, le=1)
     p_res_init: float = Field(None, title='Начальное пластовое давление', gt=0)
-    viscosity_oil: float = Field(None, title='Вязкость нефти', gt=0)
-    b_oil: float = Field(None, title='Объемный коэффициент', gt=0)
+    viscosity_eff: float = Field(None, title='Эффективная вязксость', gt=0)
+    b_eff: float = Field(None, title='Объемный коэффициент', gt=0)
     res_model_type: str = Field('', title='Модель пласта', examples=['Homogeneous', 'DP PSS', 'DP Slab', 'composite'])
     f_compressibility: float = Field(None, title='Сжимаемость трещин', ge=0)
     f_porosity: float = Field(None, title='Пористость трещин', ge=0)

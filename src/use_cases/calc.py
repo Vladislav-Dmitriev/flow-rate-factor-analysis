@@ -3,6 +3,8 @@ import traceback
 
 from src.entities.models import TaskTarget
 from src.use_cases.builder import Builder
+from src.entities.Well_model import Wellbore
+from src.entities.Layer_model import Layer
 
 
 def send_to_calc_flow_rate(input_data: TaskTarget) -> dict:

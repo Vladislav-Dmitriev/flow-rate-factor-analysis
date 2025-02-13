@@ -32,8 +32,8 @@ class Builder:
         zbound_up = input_data["base_prop"]["border_type_z_up"]
         zbound_down = input_data["base_prop"]["border_type_z_down"]
         rw = input_data["unit"]["wellbore_prop"]["wellbore_r"]
-        mu = input_data["unit"]["layer_prop"]["viscosity_oil"]
-        bl = input_data["unit"]["layer_prop"]["b_oil"]
+        mu = input_data["unit"]["layer_prop"]["viscosity_eff"]
+        bl = input_data["unit"]["layer_prop"]["b_eff"]
         reservoir_model = input_data["unit"]["layer_prop"]["res_model_type"]
         l_hor = input_data["unit"]["wellbore_prop"]["horizontal_wellbore_length"]
         kv_kh = input_data["unit"]["layer_prop"]["kv_kh_ratio"]
@@ -89,7 +89,7 @@ class Builder:
                                                                    part_sum_num_f_4, n_lateral, l_lateral, psi_lateral)
             array_well_size = self.multilateral_calculator.calc_multilateral_geometry(l_hor)
         if self.grp_flag:
-            hf = input_data["unit"]["layer_prop"]["grp_prop"]["hf"]
+            xf = input_data["unit"]["layer_prop"]["grp_prop"]["xf"]
             fracture_grow_t = input_data["unit"]["layer_prop"]["grp_prop"]["fracture_grow_t"]
             wellbore_wf = input_data["unit"]["layer_prop"]["grp_prop"]["wellbore_wf"]
             res_wf = input_data["unit"]["layer_prop"]["grp_prop"]["res_wf"]
@@ -98,18 +98,18 @@ class Builder:
             S_choke = input_data["unit"]["layer_prop"]["grp_prop"]["skin_ch"]
             sf = input_data["unit"]["layer_prop"]["grp_prop"]["skin_border"]
             # экземпляр класса ГРП
-            self.frac = Frac_Calculator(wellbore_wf, res_wf, grade, kf, hf, fracture_grow_t, rel_M, rel_D, R_in,
+            self.frac = Frac_Calculator(wellbore_wf, res_wf, grade, kf, xf, fracture_grow_t, rel_M, rel_D, R_in,
                                         S_choke, sf,
                                         k, hw_f, extend_reflections_mode,
                                         tiny, tiny_2, large_s, small,
                                         part_sum_num, max_it, small_bessel_arg, part_sum_num_b2_1,
                                         part_sum_num_f_4)
-            self.unit_length = hf
-            array_well_size[0] = 2 * hf
+            self.unit_length = xf
+            array_well_size[0] = 2 * xf
             if self.mgrp_flag:
                 n_frac = input_data["unit"]["layer_prop"]["mgrp_prop"]["grp_count"]
                 f_direction = input_data["unit"]["layer_prop"]["mgrp_prop"]["f_direction"]
-                self.multifrac_calculator = Multifrac_Calculator(wellbore_wf, res_wf, grade, kf, hf, fracture_grow_t,
+                self.multifrac_calculator = Multifrac_Calculator(wellbore_wf, res_wf, grade, kf, xf, fracture_grow_t,
                                                                  rel_M, rel_D, R_in,
                                                                  S_choke, sf,
                                                                  k, hw_f, extend_reflections_mode,
@@ -317,7 +317,7 @@ class Builder:
                                                                           self.num_segments,
                                                                           xbound, ybound,
                                                                           self.calc_type, self.unit_length)
-                else:  # горизонатльная скважина без ГРП
+                else:  # горизонтальная скважина без ГРП
                     pd[j] = self.laplace_calculator.horizontal_rect_lapl(
                         S[j], self.layer.rwd, self.layer.zed,
                         self.layer.yd, self.layer.ywd,
@@ -369,6 +369,7 @@ class Builder:
                 SumR += add
             flow_rate = SumR * res_mult
             flow_rate = float(flow_rate)
+            # print(f"Jd: {SumR}")
         return flow_rate
 
     '''Функция для расчета депрессии с учетом обводненности и давления насыщения'''

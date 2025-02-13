@@ -15,9 +15,7 @@ input_data = {
         "border_type_z_down": "n",
     },
     "target": {
-        "time_step": 0.01,
-        "number_of_steps": 0,
-        "cumulative_work_time": 100,
+        "cumulative_time": 1000,
         "target_values": {
             "q_liq": 50,
             "p_bhp": 150
