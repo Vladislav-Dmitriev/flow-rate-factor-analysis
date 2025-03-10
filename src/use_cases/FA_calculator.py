@@ -1,7 +1,5 @@
 import copy
-
 import numpy as np
-import pandas as pd
 from src.entities.models import TaskTarget
 from src.use_cases.builder import Builder
 
@@ -116,7 +114,7 @@ class FactorAnalysis:
         :param input_data: Входные данные для расчета параметров
         :type input_data: src.entities.models.TaskTarget
 
-        :return: Дебит жидкости (в сутки)
+        :return: Дебит нефти (в сутки)
         :rtype: dict
         """
         res: dict = {"t": None, "flow_rate_result": None}
@@ -147,10 +145,10 @@ class FactorAnalysis:
     def set_value(self, param, val, current_dict):
         """
         Изменение значения по ключу словаря
-        :param param:
-        :param val:
-        :param current_dict:
-        :return:
+        :param param: параметр, значение которого нужно изменить в current_dict
+        :param val: новое значение параметра
+        :param current_dict: текущий словарь с параметрами расчета
+        :return: обновленный dict с параметрами расчета
         """
         for key in self.dict_factor_params[param]["path"][:-1]:
             current_dict = current_dict[key]
@@ -181,7 +179,6 @@ class FactorAnalysis:
     def calc_factors(self):
         """
         Расчет значений факторов
-
         :return: dict со значениями факторов
         """
         q_delta_by_factor = dict.fromkeys(self.dict_factor_params.keys(), None)
@@ -203,6 +200,5 @@ class FactorAnalysis:
                 delta += (((Qk[g + 1]) + Qk[g]) / 2) * (self.dict_factor_params[param]["delta"] / self.steps)
 
             q_delta_by_factor[param] = delta
-            # print(f"Значение фактора по {param}: {delta}")
 
         return q_delta_by_factor

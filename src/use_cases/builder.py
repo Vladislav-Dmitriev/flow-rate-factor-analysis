@@ -369,7 +369,6 @@ class Builder:
                 SumR += add
             flow_rate = SumR * res_mult
             flow_rate = float(flow_rate)
-            # print(f"Jd: {SumR}")
         return flow_rate
 
     '''Функция для расчета депрессии с учетом обводненности и давления насыщения'''
